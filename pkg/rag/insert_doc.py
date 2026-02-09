@@ -4,8 +4,20 @@ from pymilvus import Collection, utility, CollectionSchema, FieldSchema, DataTyp
 from sentence_transformers import SentenceTransformer
 from pymilvus import connections
 
-
-
+# load confluence documents
+loader = ConfluenceLoader(
+    url="https://confluence.shopee.io",
+    # username="gao.ma@shopee.com",
+    username=None,
+    api_key=None,
+    token="NDA4OTc5MTczNTUyOt3GVIqqroTBOV1eWB/267IqOmTG",
+)
+# space_key 是空间名，keep_markdown=True 非常重要
+documents = loader.load(
+    # space_key="Middleware SRE",
+    page_ids=["3036416638", "3034088601", "3036443339"],
+    keep_markdown=True
+)
 
 # 2、chunk splitter
 text_splitter = RecursiveCharacterTextSplitter(
