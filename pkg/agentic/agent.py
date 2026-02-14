@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph, END
 from pkg.agentic.checkpoint.file import FileCheckpointSaver
 from pkg.agentic.memory.rag import setup_knowledge_base
 from pkg.agentic.model import llm, llm_tools
+from pkg.agentic.planner import plan_node
 from pkg.agentic.reason import reason_with_knowledge
 from pkg.agentic.state import AgentState
 
@@ -40,7 +41,7 @@ class ReflectiveAgent:
 
         # 添加节点
         workflow.add_node("reason", reason_with_knowledge) # 正常情况下推理应该只有最初一次，后续推理都在 plan 里体现
-        workflow.add_node("plan", self.plan_node)
+        workflow.add_node("plan", plan_node)
         workflow.add_node("execute", self.execute_node)
         workflow.add_node("reflect", self.reflect_node)
         workflow.add_node("adjust", self.adjust_node)
@@ -78,10 +79,6 @@ class ReflectiveAgent:
         )
 
         return self.app
-
-
-
-
 
     def execute_node(self, state: AgentState) -> Dict[str, Any]:
         """执行节点：使用工具执行计划（LangGraph tool-calling agent，无需 ReAct 文本格式）。
@@ -265,7 +262,7 @@ class ReflectiveAgent:
                 "reflections": [],
                 "tool_results": [],
                 "iteration": 0,
-                "max_iterations": 5,
+                "max_iterations": 10,
                 "is_complete": False,
                 "thread_id": thread_id,
             }
