@@ -5,6 +5,7 @@ from sympy import false
 
 from pkg.agentic.tools.load_skill import load_skill, load_sub_skill
 from pkg.agentic.tools.knots_query import query_cluster_detail
+from pkg.agentic.tools.amazon_product import amazon_search_products, amazon_analyze_for_product_dev
 from pkg.agentic.tools.log_query import query_log_info
 from pkg.agentic.tools.monitor import query_monitor_detail
 from pkg.agentic.tools.rag_knowledge import search_sop_knowledge
@@ -66,7 +67,7 @@ def _with_human_approval(tool_name: str, func: Callable[..., Any], description: 
 
     return wrapper
 
-
+# todo 对于工具的定义需要更加明确，最好有参数和返回值的规范，方便后续集成到技能系统中（例如通过 tool_definition.json 定义参数结构，或直接在 Tool 的 metadata 中加入参数说明）。目前先简单实现功能，后续再迭代完善。
 def list_tools() -> List[Tool]:
     """定义 Agent 可用的工具。需人类审核的工具会先 interrupt，审核通过后才执行。
 
@@ -117,7 +118,19 @@ def list_tools() -> List[Tool]:
             func=load_sub_skill,
             description="加载SubSkill技能信息",
             metadata={"requires_approval": False},
-        )
+        ),
+        Tool(
+            name="amazon_search_products",
+            func=lambda x: amazon_search_products(x, "US"),
+            description="搜索亚马逊商品。输入：搜索关键词（如 wireless earbuds）。基于 PA-API 5.0，需配置 AMAZON_PAAPI_* 环境变量",
+            metadata={"requires_approval": False},
+        ),
+        Tool(
+            name="amazon_analyze_for_product_dev",
+            func=lambda x: amazon_analyze_for_product_dev(x, "US"),
+            description="抓取亚马逊商品并分析，输出可开发投入市场的产品建议。输入：类目/产品关键词（如 蓝牙耳机）。输出：市场概览、竞品分析、用户痛点、产品开发建议、投入产出评估",
+            metadata={"requires_approval": False},
+        ),
     ]
 
     tools: List[Tool] = []

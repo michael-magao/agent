@@ -20,7 +20,7 @@ class LoRALayer(nn.Module):
         nn.init.kaiming_uniform_(self.lora_A.weight, a=5**0.5) # 初始化A矩阵
         nn.init.zeros_(self.lora_B.weight) # 初始化B矩阵为0，使得初始时LoRA不影响原始权重
 
-        self.scaling = alpha / rank
+        self.scaling = alpha / rank #缩放因子
 
     def forward(self, x):
         # 原始前向传播 + LoRA适配

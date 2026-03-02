@@ -1,0 +1,3 @@
+# 亚马逊商品分析工具依赖
+# pip install -r pkg/agentic/requirements-amazon.txt
+amazon-paapi5>=1.0.0
