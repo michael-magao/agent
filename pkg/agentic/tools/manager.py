@@ -9,6 +9,7 @@ from pkg.agentic.tools.amazon_product import amazon_search_products, amazon_anal
 from pkg.agentic.tools.log_query import query_log_info
 from pkg.agentic.tools.monitor import query_monitor_detail
 from pkg.agentic.tools.rag_knowledge import search_sop_knowledge
+from pkg.agentic.tools.web_search import web_search
 
 
 # 需要人类审核的工具名（执行前会 interrupt 等待人类批准，批准后才真实执行）
@@ -129,6 +130,12 @@ def list_tools() -> List[Tool]:
             name="amazon_analyze_for_product_dev",
             func=lambda x: amazon_analyze_for_product_dev(x, "US"),
             description="抓取亚马逊商品并分析，输出可开发投入市场的产品建议。输入：类目/产品关键词（如 蓝牙耳机）。输出：市场概览、竞品分析、用户痛点、产品开发建议、投入产出评估",
+            metadata={"requires_approval": False},
+        ),
+        Tool(
+            name="web_search",
+            func=web_search,
+            description="基于互联网的 Web 搜索。在需要实时/最新信息、公开事实、外部文档或市场信息时调用。输入：搜索关键词或问句（字符串）。返回：标题、链接与摘要。可选配置 TAVILY_API_KEY 使用 Tavily，否则使用免费 DDGS。",
             metadata={"requires_approval": False},
         ),
     ]

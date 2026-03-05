@@ -1,0 +1,155 @@
+# Core
+python-dotenv~=1.0.1
+pydantic~=2.10.6
+
+# Web search (for agentic/tools/web_search.py)
+ddgs>=9.0.0
+
+# MCP (Model Context Protocol)
+mcp[cli]
+anthropic~=0.84.0
+httpx~=0.28.1
+
+# LangChain ecosystem
+langchain~=0.3.19
+langchain-classic
+langchain-openai~=0.3.6
+langchain-core~=0.3.83
+langchain-community~=0.3.18
+langchain-text-splitters~=0.3.6
+langchain-huggingface
+langchain-milvus
+langgraph~=0.6.11
+
+# Vector DB & Embeddings
+pymilvus~=2.5.4
+sentence-transformers~=5.1.2
+
+# Agent / AI
+openai~=1.63.2
+structlog~=25.5.0
+
+# Amazon (optional, for pkg/agentic/tools/amazon_product.py)
+amazon-paapi5>=1.0.0
+
+# SFT / Training (optional, for pkg/sft)
+# torch
+# transformers
+# peft
+# datasets
+
+# RAG (optional, for pkg/rag)
+# gdown
+# beautifulsoup4
+
+torch~=2.6.0
+gym~=0.26.2
+numpy~=1.26.4
+bs4~=0.0.2
+beautifulsoup4~=4.13.3
+gdown~=5.2.0
+torchvision~=0.21.0
+pillow~=11.1.0
+tqdm~=4.67.1
+matplotlib~=3.9.4
+transformers~=4.49.0
+peft~=0.14.0
+datasets~=3.3.2
+common~=0.1.2
+playwright~=1.58.0
+sympy~=1.13.1
+PyYAML~=6.0.2
+h11~=0.14.0
+cryptography~=45.0.7
+anyio~=4.8.0
+httpx-sse~=0.4.0
+starlette~=0.49.3
+pydantic-settings~=2.7.1
+pip~=23.2.1
+attrs~=25.1.0
+distro~=1.9.0
+wheel~=0.41.2
+PySocks~=1.7.1
+protobuf~=5.29.3
+filelock~=3.17.0
+cffi~=2.0.0
+setuptools~=75.8.0
+grpcio~=1.67.1
+pygments~=2.19.1
+requests~=2.32.3
+ipython~=8.18.1
+idna~=3.10
+multidict~=6.1.0
+propcache~=0.3.0
+exceptiongroup~=1.2.2
+sniffio~=1.3.1
+click~=8.1.8
+httpcore~=1.0.7
+zstandard~=0.23.0
+jiter~=0.8.2
+charset-normalizer~=3.4.1
+regex~=2024.11.6
+scipy~=1.13.1
+threadpoolctl~=3.5.0
+packaging~=24.2
+mpmath~=1.3.0
+platformdirs~=4.2.2
+decorator~=5.2.1
+psutil~=7.0.0
+networkx~=3.2.1
+jinja2~=3.1.5
+urllib3~=2.3.0
+fsspec~=2024.12.0
+six~=1.17.0
+aiohttp~=3.11.12
+yarl~=1.18.3
+paramiko~=4.0.0
+ujson~=5.10.0
+MarkupSafe~=3.0.2
+joblib~=1.4.2
+cloudpickle~=3.1.1
+pandas~=2.2.3
+orjson~=3.10.15
+pyarrow~=19.0.1
+SQLAlchemy~=2.0.38
+lxml~=6.0.2
+python-dateutil~=2.9.0.post0
+xxhash~=3.5.0
+async-timeout~=4.0.3
+aiosignal~=1.3.2
+frozenlist~=1.5.0
+aiohappyeyeballs~=2.4.6
+certifi~=2025.1.31
+scikit-learn~=1.6.1
+uvicorn~=0.39.0
+deprecated~=1.3.1
+annotated-types~=0.7.0
+tenacity~=9.0.0
+tiktoken~=0.9.0
+docstring-parser~=0.17.0
+langsmith~=0.4.37
+ormsgpack~=1.11.0
+requests-toolbelt~=1.0.0
+itsdangerous~=2.2.0
+greenlet~=3.2.4
+jsonpointer~=3.0.0
+tomli~=2.0.1
+zipp~=3.21.0
+autocommand~=2.2.2
+inflect~=7.3.1
+more-itertools~=10.3.0
+importlib-metadata~=8.6.1
+tokenizers~=0.21.0
+marshmallow~=3.26.1
+safetensors~=0.5.2
+bcrypt~=4.3.0
+accelerate~=1.4.0
+huggingface-hub~=0.29.1
+nltk~=3.9.2
+torchaudio~=2.6.0
+fastapi~=0.128.0
+bitsandbytes~=0.42.0
+jsonpatch~=1.33
+typing-inspect~=0.9.0
+dataclasses-json~=0.6.7
+mypy-extensions~=1.0.0

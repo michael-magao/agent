@@ -1,0 +1,10 @@
+{
+  "configurable": {
+    "checkpoint_ns": "",
+    "thread_id": "thread_1",
+    "__pregel_runtime": "Runtime(context=None, store=None, stream_writer=<function Pregel.stream.<locals>.stream_writer at 0x32cb94a60>, previous=None)",
+    "checkpoint_id": "1f116347-3f6c-6ff6-8005-81dcfdbd6216"
+  },
+  "checkpoint_serde": {
+    "type": "msgpack",
+    "data": 

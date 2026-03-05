@@ -24,3 +24,6 @@ class SkillEntity:
     targetDir: str
     tools: List[str] = []
     reference: List[str] = []
+
+class SkillDefinition:
+    pass

@@ -1,4 +1,6 @@
 # 创建Agent
+from typing import Dict, Any
+
 from pkg.agentic.agent import ReflectiveAgent
 
 agent = ReflectiveAgent(model_name="gpt-4", max_iterations=3)  # 使用deepseek模型
@@ -18,10 +20,10 @@ def _cli_approval(payload: dict) -> bool:
 
 
 # 运行复杂任务（传入 approval_callback 后，敏感工具会走人工审核，不再阻塞在 interrupt）
+query = "集群zk-ai-platform-ego-common-us-live-jwhmjs8p-cc-backup出现大量CPU使用率飙升的告警，请处理："
+
 result = agent.run(
-    """
-集群zk-ai-platform-ego-common-us-live-jwhmjs8p-cc-backup出现大量CPU使用率飙升的告警，请处理：
-""",
+    query,
     approval_callback=_cli_approval,
 )
 
@@ -45,3 +47,9 @@ print(f"最终答案：{tool_results[-1]['result'] if tool_results else '无'}")
 print("\n反思记录：")
 for i, reflection in enumerate(result.get("reflections") or [], 1):
     print(f"{i}. {(reflection or '')[:200]}...")
+
+
+user_name = ""
+def run(query: str, user_name: str) -> Dict[str, Any]:
+    # 拿到user对应的id信息
+    agent.run(query, )
