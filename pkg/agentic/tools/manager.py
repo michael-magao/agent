@@ -1,7 +1,10 @@
+import ast
 import contextvars
+import math
+import operator
 from typing import List, Callable, Any, Optional
+
 from langchain_core.tools import Tool
-from sympy import false
 
 from pkg.agentic.tools.load_skill import load_skill, load_sub_skill
 from pkg.agentic.tools.knots_query import query_cluster_detail
@@ -20,6 +23,70 @@ TOOLS_REQUIRING_APPROVAL: set = {"search_sop"}
 _approval_callback_ctx: contextvars.ContextVar[Optional[Callable[[dict], Any]]] = contextvars.ContextVar(
     "approval_callback", default=None
 )
+
+_ALLOWED_BINARY_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+_ALLOWED_UNARY_OPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+_ALLOWED_FUNCTIONS = {
+    "abs": abs,
+    "ceil": math.ceil,
+    "floor": math.floor,
+    "log": math.log,
+    "log10": math.log10,
+    "max": max,
+    "min": min,
+    "pow": pow,
+    "round": round,
+    "sqrt": math.sqrt,
+}
+_ALLOWED_CONSTANTS = {
+    "e": math.e,
+    "pi": math.pi,
+}
+
+
+def calculate_expression(expression: str) -> str:
+    """安全计算基础数学表达式，拒绝属性访问、导入和任意函数调用。"""
+    if not isinstance(expression, str) or not expression.strip():
+        return "表达式不能为空"
+    if len(expression) > 500:
+        return "表达式过长"
+
+    def _eval(node: ast.AST) -> float:
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in _ALLOWED_BINARY_OPS:
+            return _ALLOWED_BINARY_OPS[type(node.op)](_eval(node.left), _eval(node.right))
+        if isinstance(node, ast.UnaryOp) and type(node.op) in _ALLOWED_UNARY_OPS:
+            return _ALLOWED_UNARY_OPS[type(node.op)](_eval(node.operand))
+        if isinstance(node, ast.Name) and node.id in _ALLOWED_CONSTANTS:
+            return _ALLOWED_CONSTANTS[node.id]
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _ALLOWED_FUNCTIONS:
+            args = [_eval(arg) for arg in node.args]
+            if node.keywords:
+                raise ValueError("不支持关键字参数")
+            return _ALLOWED_FUNCTIONS[node.func.id](*args)
+        raise ValueError(f"不支持的表达式: {ast.dump(node, include_attributes=False)}")
+
+    try:
+        result = _eval(ast.parse(expression, mode="eval"))
+    except Exception as e:
+        return f"计算失败: {e}"
+    if isinstance(result, float) and result.is_integer():
+        return str(int(result))
+    return str(result)
 
 
 def set_approval_callback(callback: Optional[Callable[[dict], Any]]) -> None:
@@ -86,14 +153,17 @@ def list_tools() -> List[Tool]:
         ),
         Tool(
             name="calculator",
-            func=lambda x: str(eval(x)),
-            description="计算数学表达式",
+            func=calculate_expression,
+            description="安全计算基础数学表达式，支持 + - * / // % ** 和 sqrt/log/round 等常用函数",
             metadata={"requires_approval": False},
         ),
         Tool(
             name="query_cluster_detail",
             func=query_cluster_detail,
-            description="查询集群详细信息",
+            description=(
+                "查询 Knots dc-admin 集群详情。输入集群名，"
+                "或 JSON: {\"cluster\":\"...\",\"service\":\"zookeeper|etcd|v2\"}"
+            ),
             metadata={"requires_approval": True},
         ),
         Tool(
@@ -105,7 +175,10 @@ def list_tools() -> List[Tool]:
         Tool(
             name="query_monitor_detail",
             func=query_monitor_detail,
-            description="查询监控信息",
+            description=(
+                "查询 Knots 集群监控。输入集群名，或 JSON: "
+                "{\"cluster\":\"...\",\"metrics\":[\"cpu\",\"memory\"],\"regions\":[\"sg\",\"us\"]}"
+            ),
             metadata={"requires_approval": True},
         ),
         Tool(

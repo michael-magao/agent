@@ -1,4 +1,5 @@
 import base64
+import binascii
 import json
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +22,36 @@ def _to_json_safe(obj: Any) -> Any:
         return str(obj)
     except Exception:
         return None
+
+
+def _pack_serde_payload(payload_type: str, payload: bytes) -> Dict[str, str]:
+    return {
+        "type": payload_type,
+        "data": base64.b64encode(payload).decode("ascii"),
+        "encoding": "base64",
+    }
+
+
+def _unpack_serde_payload(serde: Any) -> Optional[tuple[str, bytes]]:
+    if not (isinstance(serde, dict) and "type" in serde and "data" in serde):
+        return None
+
+    payload_type = serde["type"]
+    payload = serde["data"]
+    if isinstance(payload, bytes):
+        return payload_type, payload
+    if not isinstance(payload, str):
+        return None
+
+    encoding = serde.get("encoding")
+    if encoding == "base64" or encoding is None:
+        try:
+            return payload_type, base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError):
+            if encoding == "base64":
+                raise
+
+    return payload_type, payload.encode("utf-8")
 
 
 class FileCheckpointSaver(BaseCheckpointSaver):
@@ -58,13 +89,11 @@ class FileCheckpointSaver(BaseCheckpointSaver):
         configurable = _to_json_safe(config.get("configurable") or {})
         # 使用 serde 序列化 checkpoint/metadata，支持 Message、复杂对象等
         typ_c, data_c = self.serde.dumps_typed(checkpoint)
-        typ_m, data_m = self.serde.dumps_typed(metadata) # todo 干嘛用的？
+        typ_m, data_m = self.serde.dumps_typed(metadata)
         save_data = {
             "configurable": configurable,
-            # "checkpoint_serde": {"type": typ_c, "data": base64.b64encode(data_c).decode()},
-            # "metadata_serde": {"type": typ_m, "data": base64.b64encode(data_m).decode()},
-            "checkpoint_serde": {"type": typ_c, "data": data_c},
-            "metadata_serde": {"type": typ_m, "data": data_m},
+            "checkpoint_serde": _pack_serde_payload(typ_c, data_c),
+            "metadata_serde": _pack_serde_payload(typ_m, data_m),
             "new_versions": _to_json_safe(new_versions),
             "timestamp": datetime.now().isoformat(),
         }
@@ -125,18 +154,16 @@ class FileCheckpointSaver(BaseCheckpointSaver):
 
         # 从 serde 格式反序列化
         cs = data.get("checkpoint_serde") or data.get("checkpoint")
-        if isinstance(cs, dict) and "type" in cs and "data" in cs:
-            checkpoint = self.serde.loads_typed(
-                (cs["type"], base64.b64decode(cs["data"]))
-            )
+        packed_checkpoint = _unpack_serde_payload(cs)
+        if packed_checkpoint:
+            checkpoint = self.serde.loads_typed(packed_checkpoint)
         else:
             checkpoint = cs if isinstance(cs, dict) else {}
 
         ms = data.get("metadata_serde") or data.get("metadata", {})
-        if isinstance(ms, dict) and "type" in ms and "data" in ms:
-            metadata = self.serde.loads_typed(
-                (ms["type"], base64.b64decode(ms["data"]))
-            )
+        packed_metadata = _unpack_serde_payload(ms)
+        if packed_metadata:
+            metadata = self.serde.loads_typed(packed_metadata)
         else:
             metadata = ms if isinstance(ms, dict) else {}
 
@@ -200,17 +227,15 @@ class FileCheckpointSaver(BaseCheckpointSaver):
                 continue
             checkpoint_id = file_path.stem
             cs = data.get("checkpoint_serde") or data.get("checkpoint")
-            if isinstance(cs, dict) and "type" in cs and "data" in cs:
-                checkpoint = self.serde.loads_typed(
-                    (cs["type"], base64.b64decode(cs["data"]))
-                )
+            packed_checkpoint = _unpack_serde_payload(cs)
+            if packed_checkpoint:
+                checkpoint = self.serde.loads_typed(packed_checkpoint)
             else:
                 checkpoint = cs if isinstance(cs, dict) else {}
             ms = data.get("metadata_serde") or data.get("metadata", {})
-            if isinstance(ms, dict) and "type" in ms and "data" in ms:
-                metadata = self.serde.loads_typed(
-                    (ms["type"], base64.b64decode(ms["data"]))
-                )
+            packed_metadata = _unpack_serde_payload(ms)
+            if packed_metadata:
+                metadata = self.serde.loads_typed(packed_metadata)
             else:
                 metadata = ms if isinstance(ms, dict) else {}
             parent_config = (

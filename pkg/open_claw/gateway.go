@@ -2,9 +2,11 @@ package open_claw
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -12,20 +14,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // allow all origins for local dev
-	},
-}
-
 // Gateway implements the OpenClaw WebSocket control plane
 type Gateway struct {
-	Config      *Config
-	Store       *SessionStore
-	Agent       Agent
-	startTime   time.Time
-	clients     map[*websocket.Conn]bool
-	clientsMu   sync.RWMutex
+	Config    *Config
+	Store     *SessionStore
+	Agent     Agent
+	startTime time.Time
+	clients   map[*websocket.Conn]bool
+	clientsMu sync.RWMutex
 }
 
 func NewGateway(cfg *Config, store *SessionStore, agent Agent) *Gateway {
@@ -39,6 +35,7 @@ func NewGateway(cfg *Config, store *SessionStore, agent Agent) *Gateway {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	upgrader := websocket.Upgrader{CheckOrigin: g.checkOrigin}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[gateway] upgrade: %v", err)
@@ -208,7 +205,11 @@ func (g *Gateway) handleHealth(conn *websocket.Conn, reqID string) {
 
 func (g *Gateway) sendResponse(conn *websocket.Conn, id string, ok bool, payload any) {
 	res := Response{Type: FrameResponse, ID: id, OK: ok, Payload: payload}
-	data, _ := json.Marshal(res)
+	data, err := json.Marshal(res)
+	if err != nil {
+		log.Printf("[gateway] marshal response: %v", err)
+		return
+	}
 	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		log.Printf("[gateway] write: %v", err)
 	}
@@ -216,24 +217,70 @@ func (g *Gateway) sendResponse(conn *websocket.Conn, id string, ok bool, payload
 
 func (g *Gateway) sendError(conn *websocket.Conn, id, code, msg string) {
 	res := Response{
-		Type: FrameResponse,
-		ID:   id,
-		OK:   false,
+		Type:  FrameResponse,
+		ID:    id,
+		OK:    false,
 		Error: &Error{Code: code, Message: msg},
 	}
-	data, _ := json.Marshal(res)
-	conn.WriteMessage(websocket.TextMessage, data)
+	data, err := json.Marshal(res)
+	if err != nil {
+		log.Printf("[gateway] marshal error response: %v", err)
+		return
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		log.Printf("[gateway] write error response: %v", err)
+	}
 }
 
 // Run starts the HTTP + WebSocket server
 func (g *Gateway) Run() error {
 	port := 18789
+	bind := "127.0.0.1"
 	if g.Config != nil && g.Config.Gateway != nil && g.Config.Gateway.Port > 0 {
 		port = g.Config.Gateway.Port
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	if g.Config != nil && g.Config.Gateway != nil && g.Config.Gateway.Bind != "" {
+		bind = g.Config.Gateway.Bind
+	}
+	addr := net.JoinHostPort(bind, strconv.Itoa(port))
 	mux := http.NewServeMux()
 	mux.Handle("/", g)
 	log.Printf("[gateway] listening on ws://%s", addr)
 	return http.ListenAndServe(addr, mux)
+}
+
+func (g *Gateway) checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	originHost := hostOnly(parsed.Host)
+	requestHost := hostOnly(r.Host)
+	if originHost == "" {
+		return false
+	}
+	if originHost == requestHost {
+		return true
+	}
+	return isLoopbackHost(originHost) && isLoopbackHost(requestHost)
+}
+
+func hostOnly(value string) string {
+	host, _, err := net.SplitHostPort(value)
+	if err == nil {
+		return host
+	}
+	return value
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

@@ -4,11 +4,20 @@ from pkg.agentic.memory.rag import setup_knowledge_base
 from pkg.agentic.model import llm
 from pkg.agentic.state import AgentState
 
+
+def _message_content(message: object) -> str:
+    if hasattr(message, "content"):
+        return str(getattr(message, "content"))
+    if isinstance(message, (tuple, list)) and len(message) >= 2:
+        return str(message[1])
+    return str(message)
+
+
 def reason_node(state: AgentState) -> Dict[str, Any]:
     """推理节点：分析问题，明确目标"""
     messages = [
         ("system", "你是一个善于推理的AI助手。分析用户的问题，明确核心目标。"),
-        ("human", state["messages"][-1].content if state["messages"] else state.get("current_goal", ""))
+        ("human", _message_content(state["messages"][-1]) if state.get("messages") else state.get("current_goal", ""))
     ]
 
     response = llm.invoke(messages)
@@ -20,11 +29,12 @@ def reason_node(state: AgentState) -> Dict[str, Any]:
 
 def reason_with_knowledge(state: AgentState) -> Dict[str, Any]:
     """带知识检索的推理"""
-    # 从知识库检索相关信息
-    # todo 全面一点还需要结合记忆中的历史对话和用户画像等信息进行综合推理，目前先简单实现知识检索的部分
-    knowledge_base = setup_knowledge_base()
-    docs = knowledge_base.similarity_search(state["current_goal"], k=1)
-    knowledge = "\n".join([doc.page_content for doc in docs])
+    try:
+        knowledge_base = setup_knowledge_base()
+        docs = knowledge_base.similarity_search(state["current_goal"], k=1)
+        knowledge = "\n".join([getattr(doc, "page_content", str(doc)) for doc in docs])
+    except Exception as exc:
+        knowledge = f"[知识库暂不可用: {exc}]"
 
     # todo 需要补充意图识别的逻辑（用户在多轮对话中，每一个新的输入，都需要结合该session的前期多次对话和记忆信息综合推演用户意图）
     prompt = f"""
@@ -34,7 +44,7 @@ def reason_with_knowledge(state: AgentState) -> Dict[str, Any]:
         {knowledge}
         
         历史对话：
-        {state.get('messages', [])[-5:]}
+        {[_message_content(message) for message in state.get('messages', [])[-5:]]}
         
         用户当前问题：
         {state['current_goal']}

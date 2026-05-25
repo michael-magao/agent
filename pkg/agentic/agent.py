@@ -1,5 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import json
+import os
+import re
 from typing import Dict, Any, Optional
 
 from langchain.memory import ConversationBufferMemory
@@ -17,6 +20,9 @@ from pkg.agentic.tools.manager import list_tools, set_approval_callback
 
 class ReflectiveAgent:
     def __init__(self, model_name="gpt-4", max_iterations=5):
+        self.model_name = model_name
+        self.max_iterations = max_iterations
+        self.debug = os.getenv("AGENT_DEBUG", "").lower() in {"1", "true", "yes"}
         # 初始化模型
         self.llm = llm  # 使用高逻辑性模型（deepseek-reasoner）
         self.llm_tools = llm_tools  # 工具调用用 deepseek-chat，避免 reasoning_content 400 报错
@@ -112,7 +118,7 @@ class ReflectiveAgent:
         output = messages[-1].content if messages else ""
 
         # 可选：打印本轮所有消息，便于确认工具是否被调用及返回（ToolMessage 的 content 即工具执行结果）
-        if __debug__:
+        if self.debug:
             for i, m in enumerate(messages):
                 kind = type(m).__name__
                 if kind == "AIMessage" and getattr(m, "tool_calls", None):
@@ -121,7 +127,7 @@ class ReflectiveAgent:
                     print(f"  [{i}] {kind} name={getattr(m, 'name', '')} content={str(getattr(m, 'content', ''))[:200]}")
                 else:
                     print(f"  [{i}] {kind} content={str(getattr(m, 'content', ''))[:200]}")
-        print("execute_node output", output)
+            print("execute_node output", output)
 
         # 更新状态
         new_results = state.get("tool_results", []) + [{
@@ -232,11 +238,30 @@ class ReflectiveAgent:
         目标：{goal}
         当前结果：{result}
         
-        目标是否已达成？回答 '是' 或 '否'
+        目标是否已达成？请只返回 JSON：{{"achieved": true/false}}
         """
 
         response = self.llm.invoke([("human", prompt)])
-        return "是" in response.content
+        return self._parse_goal_achieved(response.content)
+
+    @staticmethod
+    def _parse_goal_achieved(content: str) -> bool:
+        """解析目标完成判断，避免“不是/未完成”误判为完成。"""
+        text = (content or "").strip()
+        try:
+            match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+            data = json.loads(match.group(0) if match else text)
+            if isinstance(data, dict) and "achieved" in data:
+                return bool(data["achieved"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+        normalized = text.lower()
+        negative_terms = ("不是", "否", "未完成", "未达成", "没有达成", "no", "false")
+        positive_terms = ("是", "已完成", "已达成", "达成", "yes", "true")
+        if any(term in normalized for term in negative_terms):
+            return False
+        return any(term in normalized for term in positive_terms)
 
     # ========== 运行方法 ==========
 
@@ -262,7 +287,7 @@ class ReflectiveAgent:
                 "reflections": [],
                 "tool_results": [],
                 "iteration": 0,
-                "max_iterations": 10,
+                "max_iterations": self.max_iterations,
                 "is_complete": False,
                 "thread_id": thread_id,
             }
@@ -306,10 +331,20 @@ class ReflectiveAgent:
 
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = []
-            for step in state["plan"][:3]:  # 并行执行前3步
-                future = executor.submit(self._execute_single_step, step, state)
+            for index, step in enumerate(state["plan"][:3]):  # 并行执行前3步
+                future = executor.submit(self._execute_single_step, step, state, index)
                 futures.append(future)
 
             results = [f.result() for f in futures]
 
         return {"tool_results": state["tool_results"] + results}
+
+    def _execute_single_step(self, step: str, state: AgentState, index: int = 0) -> Dict[str, Any]:
+        thread_id = state.get("thread_id") or "thread_1"
+        single_state = {
+            **state,
+            "plan": [step],
+            "thread_id": f"{thread_id}_parallel_{index}",
+        }
+        result = self.execute_node(single_state)
+        return result["tool_results"][-1]

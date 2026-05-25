@@ -30,11 +30,11 @@ type AmazonSearchResult struct {
 
 // ProductDevReport 产品开发建议报告（供 LLM 分析后的结构化输出）
 type ProductDevReport struct {
-	MarketOverview   string   `json:"market_overview"`   // 市场概览
+	MarketOverview     string `json:"market_overview"`     // 市场概览
 	CompetitorAnalysis string `json:"competitor_analysis"` // 竞品分析
-	UserPainPoints   string   `json:"user_pain_points"`  // 用户痛点
-	Recommendations  string   `json:"recommendations"`   // 产品开发建议
-	ROIAssessment    string   `json:"roi_assessment"`    // 投入产出评估
+	UserPainPoints     string `json:"user_pain_points"`    // 用户痛点
+	Recommendations    string `json:"recommendations"`     // 产品开发建议
+	ROIAssessment      string `json:"roi_assessment"`      // 投入产出评估
 }
 
 // AmazonClient 封装 PA-API 调用（Go 侧可通过 Python 或 HTTP 代理复用实现）
@@ -69,17 +69,15 @@ func (c *AmazonClient) AnalyzeForProductDev(keyword string) (string, error) {
 
 func (c *AmazonClient) callPythonTool(toolName, keyword string) (string, error) {
 	root := findProjectRoot()
-	// 转义 Python 字符串中的引号和反斜杠
-	kw := strings.ReplaceAll(keyword, `\`, `\\`)
-	kw = strings.ReplaceAll(kw, `"`, `\"`)
 	script := fmt.Sprintf(
 		`import sys; sys.path.insert(0, %q)
 from pkg.agentic.tools.amazon_product import amazon_search_products, amazon_analyze_for_product_dev
-kw = %q
-print(amazon_search_products(kw, "US") if %q == "amazon_search_products" else amazon_analyze_for_product_dev(kw, "US"))`,
-		root, kw, toolName)
+tool_name = sys.argv[1]
+kw = sys.argv[2]
+print(amazon_search_products(kw, "US") if tool_name == "amazon_search_products" else amazon_analyze_for_product_dev(kw, "US"))`,
+		root)
 
-	cmd := exec.Command("python", "-c", strings.TrimSpace(script))
+	cmd := exec.Command(pythonExecutable(), "-c", strings.TrimSpace(script), toolName, keyword)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
 		"AMAZON_PAAPI_ACCESS_KEY="+c.AccessKey,
@@ -92,6 +90,16 @@ print(amazon_search_products(kw, "US") if %q == "amazon_search_products" else am
 		return "", fmt.Errorf("%w: %s", err, out)
 	}
 	return string(out), nil
+}
+
+func pythonExecutable() string {
+	if path := os.Getenv("PYTHON_BIN"); path != "" {
+		return path
+	}
+	if path, err := exec.LookPath("python3"); err == nil {
+		return path
+	}
+	return "python"
 }
 
 func findProjectRoot() string {
